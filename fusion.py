@@ -16,8 +16,8 @@ from dotenv import load_dotenv
 from store import VectorStore
 
 
-client = genai.Client(api_key="AIzaSyBBv7IYu3TLoTYoU6BfiMTQg1EC7ECbSgc")
-exa = Exa(api_key='6713a57a-14b6-4c82-a0aa-50e377f9abc6')
+client = genai.Client(api_key="")
+exa = Exa(api_key='')
 mystore =  VectorStore("doc") 
 
 

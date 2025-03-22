@@ -1,4 +1,5 @@
 import os
+from typing import List
 import requests
 from urllib.parse import urlparse
 import lancedb
@@ -24,16 +25,21 @@ class VectorStore:
                 docs.append({
                     "vector": e.embedding,
                     "text": e.text,
+                    "file_name": e.metadata["file_name"],
                     "id": str(uuid4())
                 })
             self.table = self.connection.create_table("docs", docs)
 
-    def forward(self, query: str) -> str:
+    def forward(self, query: str) -> List[str]:
         assert isinstance(query, str)
 
-        query_vec = embed_anything.embed_query([query], embedder = self.model)[0].embedding
-        docs = self.table.search(query_vec).limit(5).to_pandas()["text"]
-        return docs
+        query_vec = embed_anything.embed_query([query], embedder=self.model)[0].embedding
+        docs = self.table.search(query_vec).limit(5).to_pandas()
+        output = []
+        for _, row in docs.iterrows():
+            context = f"File Name: {row['file_name']} \n Text: {row['text']}"
+            output.append(context)
+        return output
     # "\nRetrieved documents:\n" + "".join(
     #         [f"\n\n===== Document {str(i)} =====\n" + doc for i, doc in enumerate(docs)]
     #     )

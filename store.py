@@ -34,7 +34,7 @@ class VectorStore:
         assert isinstance(query, str)
 
         query_vec = embed_anything.embed_query([query], embedder=self.model)[0].embedding
-        docs = self.table.search(query_vec).limit(5).to_pandas()
+        docs = self.table.search(query_vec).limit(10).to_pandas()
         output = []
         for _, row in docs.iterrows():
             context = f"File Name: {row['file_name']} \n Text: {row['text']}"

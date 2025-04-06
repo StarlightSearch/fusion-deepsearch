@@ -5,6 +5,7 @@ from store import VectorStore
 from exa_py import Exa
 import os
 import gradio as gr
+import argparse
 
 def get_rephraser_prompt(
     question: str,
@@ -32,9 +33,6 @@ and converting it into a query for a vectorstore. In the process, strip out all
 information that is not relevant for the retrieval task and return a new, simplified
 question for vectorstore retrieval. 
 
-Here is the user query that the user wants to do deep research on.
-
-User query: {question}
 
 The following information is already collected. The information within the <local_observation> tag is collected from the local documents that the user has. The infomation withing the <web_observations> tag is collected from the web. 
 The previously used queries are also provided within the <previous_queries> tag. Make sure to provide more queries that explore different perspectives of the topic.  
@@ -64,6 +62,9 @@ Before setting the done flag to true, make sure that the following conditions ar
 3. You have collected some supporting views
 4. You have collected some views that are not directly related to the topic but can be used to explore the topic further.
 
+Here is the user query that the user wants to do deep research on.
+User query: {question}
+
 Always provide the respone in the given JSON format
 
     """
@@ -73,9 +74,6 @@ and converting it into a query for a vectorstore. In the process, strip out all
 information that is not relevant for the retrieval task and return a new, simplified
 question for vectorstore retrieval. 
 
-Here is the user query that the user wants to do deep research on.
-
-User query: {question}
 
 The following information is already collected. The information within the <local_observation> tag is collected from the local documents that the user has.
 The previously used queries are also provided within the <previous_queries> tag. Make sure to provide more queries that explore different perspectives of the topic.  
@@ -99,6 +97,9 @@ Before setting the done flag to true, make sure that the following conditions ar
 3. You have collected some supporting views
 4. You have collected some views that are not directly related to the topic but can be used to explore the topic further.
 
+Here is the user query that the user wants to do deep research on.
+User query: {question}
+
 Always provide the respone in the given JSON format
 
     """
@@ -120,7 +121,7 @@ class QueryRephase(BaseModel):
     querys: list[str]
     done: bool
 
-question = "what are the differences between SSM models and transformer models?"
+question = "How are transformer models trained?"
 
 
 def rephrase(prompt: str) -> list:
@@ -152,16 +153,20 @@ def get_observations(queries: List[str]) -> List[str]:
     web_observations = []
     for query in queries:
         local_observation = my_store.forward(query)
+        local_observation = [f"Question: {query}"] + local_observation
         local_observations.extend(list(local_observation))
 
         if web_search:
-            web_result = exa.search_and_contents(query, type="auto", text=True, num_results=3)
+            web_result = exa.search_and_contents(
+                query, type="auto", text=True, num_results=3
+            )
             web_observation = []
             for result in web_result.results:
                 observation = f"Title: {result.title} \n URL: {result.url} \n Content: {result.text}"
                 web_observation.append(observation)
+            web_observation = [f"Question: {query}"] + web_observation
             web_observations.extend(web_observation)
-    
+
     return local_observations, web_observations
 
 
@@ -184,7 +189,6 @@ def do_research(question: str, max_steps: int = 5) -> List[str]:
             web_observations.extend(web_observation)
     return local_observations, web_observations
 
-
 local_observations, web_observations = do_research(question)
 
 
@@ -192,8 +196,6 @@ def write_report(question: str, local_observations: List[str], web_observations:
     if len(web_observations) > 0:
         template = f"""You are an expert in writing reports. You are provided with the user query and the collected information from both local and web sources. 
 The local information is within the <local_observations> tag and the web information is within the <web_observations> tag.
-
-User query: {question}
 
 <local_observations>
 {local_observations}
@@ -213,13 +215,14 @@ Instructions:
 5. Provide inline citations if needed. Cite the file name for the local observations and the URL for the web observations. Provide all references at the end of the report.
 6. Provide tables if needed to show differences
 
-        """
+Here is the user query that the user wants to do deep research on.
+User query: {question}
+"""
 
     if len(web_observations) == 0:
         template = f"""You are an expert in writing reports. You are provided with the user query and the collected information from local sources. 
 The local information is within the <local_observations> tag.
 
-User query: {question}
 
 <local_observations>
 {local_observations}
@@ -232,6 +235,9 @@ Instructions:
 4. Structure the report with an introduction, body and conclusion
 5. Provide inline citations if needed. Cite the file name. Provide all references as file name at the end of the report.
 6. Provide tables if needed to show differences
+
+Here is the user query that the user wants to do deep research on.
+User query: {question}
         """
 
     response = report_response(template)
@@ -242,20 +248,40 @@ report = write_report(question, local_observations, web_observations)
 with open("report.md", "w", encoding="utf-8") as f:
     f.write(report)
 
-def gradio_interface(question: str, max_steps: int = 5):
-    local_observations, web_observations = do_research(question, max_steps)
-    report = write_report(question, local_observations, web_observations)
-    return report
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Generate a research report based on a query.")
+    parser.add_argument("question", type=str, help="The question to research.")
+    parser.add_argument("--max_steps", type=int, default=5, help="Maximum number of research steps.")
+    args = parser.parse_args()
 
-iface = gr.Interface(
-    fn=gradio_interface,
-    inputs=[
-        gr.Textbox(lines=2, placeholder="Enter your question here..."),
-        gr.Slider(minimum=1, maximum=10, value=5, label="Max Steps")
-    ],
-    outputs="markdown",
-    title="Deep Research Assistant",
-    description="Enter a question to get a detailed research report based on local and web observations."
-)
+    local_observations, web_observations = do_research(args.question, args.max_steps)
+    report = write_report(args.question, local_observations, web_observations)
+    print(report)
 
-iface.launch()
+
+
+
+
+
+
+
+
+
+# def gradio_interface(question: str, max_steps: int = 5):
+#     local_observations, web_observations = do_research(question, max_steps)
+#     report = write_report(question, local_observations, web_observations)
+#     yield report
+
+# iface = gr.Interface(
+#     fn=gradio_interface,
+#     inputs=[
+#         gr.Textbox(lines=2, placeholder="Enter your question here..."),
+#         gr.Slider(minimum=1, maximum=10, value=5, label="Max Steps")
+#     ],
+#     outputs="markdown",
+#     title="Deep Research Assistant",
+#     description="Enter a question to get a detailed research report based on local and web observations.",
+#     live=True  # Enable streaming of the output
+# )
+
+# iface.launch()
